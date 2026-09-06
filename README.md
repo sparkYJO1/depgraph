@@ -17,11 +17,11 @@ shows that. The point is whether it is worth a second store, and that is a
 question with a number attached.
 
 The answer turned out to be narrower than the premise implied. Postgres wins
-reachability outright, at every depth measured. Blast radius crosses over
-between depth 2 and depth 4, after which Neo4j is two to three times faster.
-And shortest path is not close: Neo4j answers in single-digit milliseconds while
-the recursive CTE cannot answer it at all past depth 6, because returning a path
-puts SQL in a different complexity class. One query out of three is the real
+reachability outright, at every depth measured. Blast radius is level at depth 4
+and Neo4j takes over beyond it, two to four times faster. And shortest path is
+not close: Neo4j answers in one to two milliseconds at every depth while the
+recursive CTE degrades an order of magnitude per level and gives up entirely at
+depth 10, because returning a path puts SQL in a different complexity class. One query out of three is the real
 case for the second store — and it happens to be the only one of the three whose
 answer you can act on.
 
@@ -131,43 +131,43 @@ Dataset: 50000 packages, 199981 dependency edges, 251 marked vulnerable, 10 leve
 Hardware: Apple M3, 8 cores, 24 GB, darwin 25.5.0. Both stores in Docker.
 Versions: Postgres 16.15, Neo4j 5.26.30, Node v22.21.1.
 Method: 3 discarded warm-up runs, then 21 timed runs. Each cell is `median / fastest` in milliseconds.
-Load average when this run started: 13.0, 9.9, 9.3 on 8 cores.
+Load average when this run started: 4.0, 4.4, 6.6 on 8 cores.
 
 #### Query 1 — reachability: which vulnerable packages does `cobalt-guard-49961` pull in, and how deep?
 
 | depth | postgres (recursive CTE) | postgres (BFS) | neo4j (Cypher) | result        |
 |------:|-------------------------:|---------------:|---------------:|---------------|
-|     2 |                1.1 / 0.9 |     11.2 / 7.4 |      5.4 / 3.9 | 1 vulnerable  |
-|     4 |               10.5 / 6.1 |   102.2 / 50.2 |    55.2 / 29.5 | 20 vulnerable |
-|     6 |              80.0 / 38.0 |  174.7 / 115.2 |   116.6 / 76.1 | 46 vulnerable |
-|     8 |             106.5 / 51.4 |  183.9 / 143.3 |  168.5 / 114.0 | 53 vulnerable |
-|    10 |             112.5 / 63.5 |  159.6 / 128.2 |  729.4 / 427.2 | 53 vulnerable |
+|     2 |                0.8 / 0.6 |      5.8 / 4.1 |      4.8 / 3.8 | 1 vulnerable  |
+|     4 |                3.1 / 2.9 |    25.9 / 23.5 |    15.7 / 12.3 | 20 vulnerable |
+|     6 |              14.4 / 12.4 |    66.6 / 63.7 |    38.3 / 29.9 | 46 vulnerable |
+|     8 |              26.4 / 25.2 |    84.2 / 81.6 |   106.4 / 84.8 | 53 vulnerable |
+|    10 |              35.3 / 33.5 |    93.2 / 87.3 |  228.8 / 192.1 | 53 vulnerable |
 
-Widest run-to-run spread in this table: postgres (recursive CTE) at depth 10, 63.5-1164.0 ms across 21 runs (18.3x).
+Widest run-to-run spread in this table: neo4j (Cypher) at depth 4, 12.3-64.4 ms across 21 runs (5.2x).
 
 #### Query 2 — blast radius: how many packages transitively depend on `yarrow-core-6689`?
 
 | depth | postgres (recursive CTE) | postgres (BFS) | neo4j (Cypher) | result           |
 |------:|-------------------------:|---------------:|---------------:|------------------|
-|     2 |                6.1 / 4.4 |    46.8 / 36.5 |      9.6 / 4.9 | 3672 dependents  |
-|     4 |              31.8 / 26.2 |  153.6 / 126.8 |    16.1 / 11.1 | 12225 dependents |
-|     6 |              67.2 / 52.1 |  237.3 / 192.5 |    32.2 / 19.2 | 15179 dependents |
-|     8 |              89.2 / 70.6 |  241.7 / 196.8 |    32.4 / 21.1 | 15415 dependents |
-|    10 |              76.7 / 70.5 |  224.8 / 196.1 |    22.5 / 17.0 | 15422 dependents |
+|     2 |                2.7 / 2.4 |    23.3 / 20.9 |      5.1 / 3.7 | 3672 dependents  |
+|     4 |              16.4 / 15.1 |    93.2 / 80.6 |    16.5 / 14.7 | 12225 dependents |
+|     6 |              34.3 / 31.5 |  123.9 / 117.2 |     14.7 / 9.3 | 15179 dependents |
+|     8 |              55.9 / 40.7 |  145.8 / 132.7 |    12.0 / 10.3 | 15415 dependents |
+|    10 |              44.3 / 42.6 |  134.5 / 126.5 |    11.7 / 10.8 | 15422 dependents |
 
-Widest run-to-run spread in this table: neo4j (Cypher) at depth 6, 19.2-89.7 ms across 21 runs (4.7x).
+Widest run-to-run spread in this table: neo4j (Cypher) at depth 2, 3.7-28.2 ms across 21 runs (7.6x).
 
 #### Query 3 — shortest path: the minimal dependency chain from `cobalt-guard-49961` to `quartz-bridge-4945`
 
 | depth | postgres (recursive CTE) | postgres (BFS) | neo4j (Cypher) | result        |
 |------:|-------------------------:|---------------:|---------------:|---------------|
-|     2 |                1.8 / 1.1 |     11.9 / 7.8 |      4.6 / 2.7 | not reachable |
-|     4 |              29.0 / 22.2 |    54.6 / 42.4 |      3.9 / 1.7 | not reachable |
-|     6 |            403.5 / 310.6 |  156.2 / 114.8 |      2.1 / 1.2 | not reachable |
-|     8 |                     >15s |  468.7 / 238.3 |    41.9 / 11.6 | 8 hops        |
-|    10 |                     >15s |  253.1 / 160.9 |     10.5 / 4.9 | 8 hops        |
+|     2 |                0.6 / 0.5 |      4.2 / 3.4 |      1.7 / 1.2 | not reachable |
+|     4 |               12.1 / 7.6 |    27.7 / 24.7 |      1.5 / 1.0 | not reachable |
+|     6 |            202.2 / 188.9 |    70.2 / 63.8 |      2.0 / 1.2 | not reachable |
+|     8 |          3375.6 / 3101.3 |    88.6 / 82.4 |      1.4 / 1.1 | 8 hops        |
+|    10 |                     >15s |    97.9 / 86.6 |      1.5 / 1.2 | 8 hops        |
 
-Widest run-to-run spread in this table: neo4j (Cypher) at depth 8, 11.6-100.4 ms across 21 runs (8.7x).
+Widest run-to-run spread in this table: neo4j (Cypher) at depth 4, 1.0-23.8 ms across 21 runs (24.2x).
 
 ```
 
@@ -175,18 +175,20 @@ Widest run-to-run spread in this table: neo4j (Cypher) at depth 8, 11.6-100.4 ms
 
 **Postgres wins reachability at every depth measured.** This is the opposite of
 what "use a graph database for graph problems" predicts, and it is the most
-useful thing in this repository. At depth 10, Postgres answers in 113 ms and
-Neo4j in 729 ms.
+useful thing in this repository. At depth 10, Postgres answers in 35 ms and
+Neo4j in 229 ms — a 6.5x gap in favour of the relational store.
 
-**The crossover for blast radius sits between depth 2 and depth 4.** Postgres is
-faster at depth 2 (6.1 ms against 9.6 ms) and Neo4j is twice as fast by depth 4,
-three times as fast by depth 10. So the honest form of the claim is: *for
-counting transitive dependents, Postgres is fine to depth 2 or 3 and Neo4j pulls
-away after that* — not "the graph database always wins".
+**The crossover for blast radius is at depth 4, and it is a genuine tie there.**
+Postgres is faster at depth 2 (2.7 ms against 5.1 ms), the two are level at
+depth 4 (16.4 against 16.5), and Neo4j pulls away after that — 2.3x at depth 6,
+3.8x at depth 10. So the honest form of the claim is: *for counting transitive
+dependents, Postgres is fine to depth 3 or 4 and Neo4j wins beyond it* — not
+"the graph database always wins".
 
 **Shortest path is the one that actually justifies a second store**, and it
-justifies it completely. Neo4j answers in single-digit milliseconds at every
-depth. The recursive CTE stops finishing at all past depth 6.
+justifies it completely. Neo4j answers in 1.4-2.0 ms at every depth, and the
+depth barely moves it. The recursive CTE degrades an order of magnitude per
+level past depth 4 — 12 ms, 202 ms, 3.4 s — and stops finishing at depth 10.
 
 ### Why the answers differ per query
 
