@@ -1,0 +1,40 @@
+# Both stores are pinned to explicit minor versions: a benchmark whose numbers
+# move when an image tag drifts is not a benchmark.
+#
+# Ports are shifted off the defaults so this can run next to whatever else is
+# already listening on 5432 / 7687.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: depgraph }
+    ports: ["${PGPORT:-55433}:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  neo4j:
+    image: neo4j:5.26-community
+    environment:
+      NEO4J_AUTH: neo4j/depgraph123
+      # The whole graph is roughly 30 MB on disk, so the page cache below holds
+      # all of it and every measured query runs from memory in both stores.
+      # The heap is sized for the seed rather than the benchmark: bulk creating
+      # 200k relationships through Cypher is the only memory-hungry step here.
+      NEO4J_server_memory_heap_initial__size: 2G
+      NEO4J_server_memory_heap_max__size: 2G
+      NEO4J_server_memory_pagecache_size: 1G
+    ports: ["${NEO4JPORT:-57687}:7687", "${NEO4JHTTP:-57474}:7474"]
+    volumes: ["neo4j-data:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+
+volumes:
+  postgres-data:
+  neo4j-data:

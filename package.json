@@ -1,0 +1,19 @@
+{
+  "name": "depgraph",
+  "private": true,
+  "type": "module",
+  "description": "Transitive dependency reachability answered twice — Postgres recursive CTE and Neo4j Cypher — with the timings",
+  "scripts": {
+    "up": "docker compose up -d --wait",
+    "down": "docker compose down -v",
+    "seed": "node scripts/seed.mjs",
+    "bench": "node scripts/bench.mjs",
+    "demo": "node scripts/demo.mjs",
+    "all": "npm run up && npm run seed && npm run bench",
+    "explain": "node scripts/explain.mjs"
+  },
+  "dependencies": {
+    "neo4j-driver": "^5.27.0",
+    "pg": "^8.13.0"
+  }
+}
